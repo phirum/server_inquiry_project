@@ -3,65 +3,65 @@ from flask_cors import CORS
 from flask_pymongo import PyMongo
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
-
+from bson import ObjectId
 
 app = Flask(__name__)
 app.config['MONGO_URI'] = 'mongodb://localhost:27017/quiz_app'
 app.config['JWT_SECRET_KEY'] = 'your_jwt_secret_key'  # Change to a secure key
-cors=CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
+# cors=CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 
 
-# cors = CORS(app, resources={
-#     r"/login": {
-#         "origins": "http://localhost:3000", 
-#         "methods": ["GET", "POST", "PUT", "DELETE"],  # Specify allowed methods
-#         "allow_headers": ["Content-Type", "Authorization"],  # Specify allowed headers
-#          "supports_credentials": True,  # Allow cookies or credentials
-#          },
-#     r"/register": {
-#         "origins": "http://localhost:3000",
-#         "methods": ["GET", "POST", "PUT", "DELETE"],  # Specify allowed methods
-#         "allow_headers": ["Content-Type", "Authorization"],  # Specify allowed headers
-#         "supports_credentials": True,  # Allow cookies or credentials
-#         },
-#     r"/courses": {
-#          "origins": "http://localhost:3000",
-#         "methods": ["GET", "POST", "PUT", "DELETE"],  # Specify allowed methods
-#         "allow_headers": ["Content-Type", "Authorization"],  # Specify allowed headers
-#         "supports_credentials": True,  # Allow cookies or credentials
-#     },
-#     r"/users": {
-#          "origins": "http://localhost:3000",
-#         "methods": ["GET", "POST", "PUT", "DELETE"],  # Specify allowed methods
-#         "allow_headers": ["Content-Type", "Authorization"],  # Specify allowed headers
-#         "supports_credentials": True,  # Allow cookies or credentials
-#     },
-#     r"/enrollments": {
-#          "origins": "http://localhost:3000",
-#         "methods": ["GET", "POST", "PUT", "DELETE"],  # Specify allowed methods
-#         "allow_headers": ["Content-Type", "Authorization"],  # Specify allowed headers
-#         "supports_credentials": True,  # Allow cookies or credentials
-#     },
-#     r"/quizzes": {
-#          "origins": "http://localhost:3000",
-#         "methods": ["GET", "POST", "PUT", "DELETE"],  # Specify allowed methods
-#         "allow_headers": ["Content-Type", "Authorization"],  # Specify allowed headers
-#         "supports_credentials": True,  # Allow cookies or credentials
-#     },
-#     r"/take_quiz": {
-#          "origins": "http://localhost:3000",
-#         "methods": ["GET", "POST", "PUT", "DELETE"],  # Specify allowed methods
-#         "allow_headers": ["Content-Type", "Authorization"],  # Specify allowed headers
-#         "supports_credentials": True,  # Allow cookies or credentials
-#     },
-#     r"/student_info": {
-#          "origins": "http://localhost:3000",
-#         "methods": ["GET", "POST", "PUT", "DELETE"],  # Specify allowed methods
-#         "allow_headers": ["Content-Type", "Authorization"],  # Specify allowed headers
-#         "supports_credentials": True,  # Allow cookies or credentials
-#     },
-#     # Add other routes and origins as needed
-# })
+cors = CORS(app, resources={
+    r"/login": {
+        "origins": "http://localhost:3000", 
+        "methods": ["GET", "POST", "PUT", "DELETE"],  # Specify allowed methods
+        "allow_headers": ["Content-Type", "Authorization"],  # Specify allowed headers
+         "supports_credentials": True,  # Allow cookies or credentials
+         },
+    r"/register": {
+        "origins": "http://localhost:3000",
+        "methods": ["GET", "POST", "PUT", "DELETE"],  # Specify allowed methods
+        "allow_headers": ["Content-Type", "Authorization"],  # Specify allowed headers
+        "supports_credentials": True,  # Allow cookies or credentials
+        },
+    r"/courses/*": {
+         "origins": "http://localhost:3000",
+        "methods": ["GET", "POST", "PUT", "DELETE"],  # Specify allowed methods
+        "allow_headers": ["Content-Type", "Authorization"],  # Specify allowed headers
+        "supports_credentials": True,  # Allow cookies or credentials
+    },
+    r"/users": {
+         "origins": "http://localhost:3000",
+        "methods": ["GET", "POST", "PUT", "DELETE"],  # Specify allowed methods
+        "allow_headers": ["Content-Type", "Authorization"],  # Specify allowed headers
+        "supports_credentials": True,  # Allow cookies or credentials
+    },
+    r"/enrollments": {
+         "origins": "http://localhost:3000",
+        "methods": ["GET", "POST", "PUT", "DELETE"],  # Specify allowed methods
+        "allow_headers": ["Content-Type", "Authorization"],  # Specify allowed headers
+        "supports_credentials": True,  # Allow cookies or credentials
+    },
+    r"/quizzes/*": {
+         "origins": "http://localhost:3000",
+        "methods": ["GET", "POST", "PUT", "DELETE"],  # Specify allowed methods
+        "allow_headers": ["Content-Type", "Authorization"],  # Specify allowed headers
+        "supports_credentials": True,  # Allow cookies or credentials
+    },
+    r"/take_quiz": {
+         "origins": "http://localhost:3000",
+        "methods": ["GET", "POST", "PUT", "DELETE"],  # Specify allowed methods
+        "allow_headers": ["Content-Type", "Authorization"],  # Specify allowed headers
+        "supports_credentials": True,  # Allow cookies or credentials
+    },
+    r"/student_info": {
+         "origins": "http://localhost:3000",
+        "methods": ["GET", "POST", "PUT", "DELETE"],  # Specify allowed methods
+        "allow_headers": ["Content-Type", "Authorization"],  # Specify allowed headers
+        "supports_credentials": True,  # Allow cookies or credentials
+    },
+    # Add other routes and origins as needed
+})
 
 # Initialize Flask extensions
 mongo = PyMongo(app)
@@ -109,99 +109,255 @@ def login():
     })
 
 
-@app.route('/courses', methods=['GET', 'POST', 'PUT', 'DELETE'])
-@jwt_required()
-def manage_courses():
-    user = mongo.db.users.find_one({'username': get_jwt_identity()})
-    role = user['role']
+# @app.route('/courses', methods=['GET', 'POST', 'PUT', 'DELETE'])
+# @jwt_required()
+# def manage_courses():
+#     user = mongo.db.users.find_one({'username': get_jwt_identity()})
+#     role = user['role']
 
-    if role != 'teacher' and role != 'admin':
+#     if role != 'teacher' and role != 'admin':
+#         return jsonify({'message': 'Access denied'}), 403
+
+#     if request.method == 'POST':
+#         data = request.get_json()
+#         name = data.get('name')
+#         description = data.get('description')
+#         teacher_username = get_jwt_identity()
+
+#         mongo.db.courses.insert_one({
+#             'name': name,
+#             'description': description,
+#             'teacher_username': teacher_username
+#         })
+
+#         return jsonify({'message': 'Course created successfully'})
+
+#     elif request.method == 'GET':
+#         courses = list(mongo.db.courses.find({}, {'_id': False}))
+#         return jsonify(courses)
+
+#     elif request.method == 'PUT':
+#         data = request.get_json()
+#         course_id = data.get('course_id')
+#         update_data = data.get('update_data')
+
+#         mongo.db.courses.update_one(
+#             {'_id': course_id},
+#             {'$set': update_data}
+#         )
+
+#         return jsonify({'message': 'Course updated successfully'})
+
+#     elif request.method == 'DELETE':
+#         data = request.get_json()
+#         course_id = data.get('course_id')
+
+#         mongo.db.courses.delete_one({'_id': course_id})
+
+#         return jsonify({'message': 'Course deleted successfully'})
+
+# CRUD operations for courses
+
+@app.route('/courses', methods=['POST'])
+@jwt_required()
+def create_course():
+    """Create a new course."""
+    user = mongo.db.users.find_one({'username': get_jwt_identity()})
+    if not user or user['role'] not in ['teacher', 'admin']:
         return jsonify({'message': 'Access denied'}), 403
 
-    if request.method == 'POST':
-        data = request.get_json()
-        name = data.get('name')
-        description = data.get('description')
-        teacher_username = get_jwt_identity()
+    data = request.get_json()
+    name = data.get('name')
+    description = data.get('description')
 
-        mongo.db.courses.insert_one({
-            'name': name,
-            'description': description,
-            'teacher_username': teacher_username
-        })
+    new_course = {
+        'name': name,
+        'description': description,
+        'teacher_username': user['username']
+    }
 
-        return jsonify({'message': 'Course created successfully'})
+    course_id = mongo.db.courses.insert_one(new_course).inserted_id
+    new_course['_id'] = str(course_id)
 
-    elif request.method == 'GET':
-        courses = list(mongo.db.courses.find({}, {'_id': False}))
-        return jsonify(courses)
+    return jsonify(new_course), 201
 
-    elif request.method == 'PUT':
-        data = request.get_json()
-        course_id = data.get('course_id')
-        update_data = data.get('update_data')
-
-        mongo.db.courses.update_one(
-            {'_id': course_id},
-            {'$set': update_data}
-        )
-
-        return jsonify({'message': 'Course updated successfully'})
-
-    elif request.method == 'DELETE':
-        data = request.get_json()
-        course_id = data.get('course_id')
-
-        mongo.db.courses.delete_one({'_id': course_id})
-
-        return jsonify({'message': 'Course deleted successfully'})
-
-
-
-@app.route('/quizzes', methods=['GET', 'POST', 'PUT', 'DELETE'])
+@app.route('/courses', methods=['GET'])
 @jwt_required()
-def manage_quizzes():
+def get_courses():
+
+    """Get a list of courses with pagination."""
+    page = int(request.args.get('page', 0))
+    page_size = int(request.args.get('page_size', 20))
+  
+
+    courses_cursor = mongo.db.courses.find().skip(page * page_size).limit(page_size)
+    courses = list(courses_cursor)
+    
+    total_courses = mongo.db.courses.count_documents({})
+
+    # Convert ObjectId to str for JSON serialization
+    for course in courses:
+        course['_id'] = str(course['_id'])
+
+    
+   
+    return jsonify({
+        'data': courses,
+        'total': total_courses
+    })
+
+@app.route('/courses/<course_id>', methods=['PUT'])
+@jwt_required()
+def update_course(course_id):
+    """Update a course by its ID."""
     user = mongo.db.users.find_one({'username': get_jwt_identity()})
-    role = user['role']
-
-    if role != 'teacher' and role != 'admin':
+    if not user or user['role'] not in ['teacher', 'admin']:
         return jsonify({'message': 'Access denied'}), 403
+    print("Updating Course");
+    data = request.get_json()
+    name = data.get('name')
+    description = data.get('description')
 
-    if request.method == 'POST':
-        data = request.get_json()
-        course_id = data.get('course_id')
-        questions = data.get('questions')
+    updated_course = {
+        'name': name,
+        'description': description
+    }
+    print(updated_course);
+    print(course_id);
+    course_id = ObjectId(course_id);
+    print(course_id);
+    result = mongo.db.courses.update_one(
+        {'_id': course_id},
+        {'$set': updated_course}
+    )
+    print(result);
 
-        mongo.db.quizzes.insert_one({
-            'course_id': course_id,
-            'questions': questions
-        })
+    if result.matched_count == 0:
+        return jsonify({'message': 'Course not found'}), 404
 
-        return jsonify({'message': 'Quiz created successfully'})
+    # Retrieve the updated course
+    course = mongo.db.courses.find_one({'_id': course_id})
+    course['_id'] = str(course['_id'])
 
-    elif request.method == 'GET':
-        quizzes = list(mongo.db.quizzes.find({}, {'_id': False}))
-        return jsonify(quizzes)
+    print(course);
+    return jsonify(course), 200
 
-    elif request.method == 'PUT':
-        data = request.get_json()
-        quiz_id = data.get('quiz_id')
-        update_data = data.get('update_data')
+@app.route('/courses/<course_id>', methods=['DELETE'])
+@jwt_required()
+def delete_course(course_id):
+    """Delete a course by its ID."""
+    user = mongo.db.users.find_one({'username': get_jwt_identity()})
+    if not user or user['role'] not in ['teacher', 'admin']:
+        return jsonify({'message': 'Access denied'}), 403
+    course_id = ObjectId(course_id);
+    result = mongo.db.courses.delete_one({'_id': course_id})
 
-        mongo.db.quizzes.update_one(
-            {'_id': quiz_id},
-            {'$set': update_data}
-        )
+    if result.deleted_count == 0:
+        return jsonify({'message': 'Course not found'}), 404
 
-        return jsonify({'message': 'Quiz updated successfully'})
+    return jsonify({'message': 'Course deleted successfully'}), 200
 
-    elif request.method == 'DELETE':
-        data = request.get_json()
-        quiz_id = data.get('quiz_id')
 
-        mongo.db.quizzes.delete_one({'_id': quiz_id})
 
-        return jsonify({'message': 'Quiz deleted successfully'})
+# @app.route('/quizzes', methods=['GET', 'POST', 'PUT', 'DELETE'])
+# @jwt_required()
+# def manage_quizzes():
+#     user = mongo.db.users.find_one({'username': get_jwt_identity()})
+#     role = user['role']
+
+#     if role != 'teacher' and role != 'admin':
+#         return jsonify({'message': 'Access denied'}), 403
+
+#     if request.method == 'POST':
+#         data = request.get_json()
+#         course_id = data.get('course_id')
+#         questions = data.get('questions')
+
+#         mongo.db.quizzes.insert_one({
+#             'course_id': course_id,
+#             'questions': questions
+#         })
+
+#         return jsonify({'message': 'Quiz created successfully'})
+
+#     elif request.method == 'GET':
+#         quizzes = list(mongo.db.quizzes.find({}, {'_id': False}))
+#         return jsonify(quizzes)
+
+#     elif request.method == 'PUT':
+#         data = request.get_json()
+#         quiz_id = data.get('quiz_id')
+#         update_data = data.get('update_data')
+
+#         mongo.db.quizzes.update_one(
+#             {'_id': quiz_id},
+#             {'$set': update_data}
+#         )
+
+#         return jsonify({'message': 'Quiz updated successfully'})
+
+#     elif request.method == 'DELETE':
+#         data = request.get_json()
+#         quiz_id = data.get('quiz_id')
+
+#         mongo.db.quizzes.delete_one({'_id': quiz_id})
+
+#         return jsonify({'message': 'Quiz deleted successfully'})
+
+# Create a quiz
+@app.route('/quizzes', methods=['POST'])
+def create_quiz():
+    print("start of create_quiz");
+    data = request.json
+    print(data);
+    new_quiz = {
+        'quizName': data['quizName'],
+        'course_id': data['course_id'],
+        'questions': data['questions']
+    }
+    result = mongo.db.quizzes.insert_one(new_quiz)
+    new_quiz['_id'] = str(result.inserted_id)
+    return jsonify(new_quiz)
+
+# Get all quizzes
+@app.route('/quizzes', methods=['GET'])
+def get_quizzes():
+    quizzes_cursor = mongo.db.quizzes.find()
+    quizzes = list(quizzes_cursor)
+    
+    for quizze in quizzes:
+        quizze['_id'] = str(quizze['_id'])
+    
+    return jsonify(quizzes)
+
+@app.route("/quizzes/<quiz_id>", methods=["GET"])
+def get_quiz(quiz_id):
+    print("geting by Id")
+    print(quiz_id);
+    try:
+        quiz = mongo.db.quizzes.find_one({"_id": ObjectId(quiz_id)})
+        if quiz:
+            quiz['_id'] = str( quiz['_id'])
+            print(quiz)
+            return jsonify(quiz), 200
+        else:
+            return jsonify({"message": "Quiz not found"}), 404
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
+
+# Update a quiz
+@app.route('/quizzes/<quiz_id>', methods=['PUT'])
+def update_quiz(quiz_id):
+    data = request.json
+    mongo.db.quizzes.update_one({'_id': ObjectId(quiz_id)}, {'$set': data})
+    return jsonify({'message': 'Quiz updated successfully'})
+
+# Delete a quiz
+@app.route('/quizzes/<quiz_id>', methods=['DELETE'])
+def delete_quiz(quiz_id):
+    mongo.db.quizzes.delete_one({'_id': ObjectId(quiz_id)})
+    return jsonify({'message': 'Quiz deleted successfully'})
+
 
 
 @app.route('/users', methods=['POST', 'GET', 'PUT', 'DELETE'])
