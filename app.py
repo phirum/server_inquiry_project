@@ -12,7 +12,7 @@ app.config['JWT_SECRET_KEY'] = 'your_jwt_secret_key'  # Change to a secure key
 
 
 cors = CORS(app, resources={
-    r"/login": {
+    r"/login/*": {
         "origins": "http://localhost:3000", 
         "methods": ["GET", "POST", "PUT", "DELETE"],  # Specify allowed methods
         "allow_headers": ["Content-Type", "Authorization"],  # Specify allowed headers
@@ -36,7 +36,7 @@ cors = CORS(app, resources={
         "allow_headers": ["Content-Type", "Authorization"],  # Specify allowed headers
         "supports_credentials": True,  # Allow cookies or credentials
     },
-    r"/enrollments": {
+    r"/enrollments/*": {
          "origins": "http://localhost:3000",
         "methods": ["GET", "POST", "PUT", "DELETE"],  # Specify allowed methods
         "allow_headers": ["Content-Type", "Authorization"],  # Specify allowed headers
@@ -545,50 +545,149 @@ def delete_user(user_id):
 
     return jsonify({'message': 'User deleted successfully'}), 200
 
-@app.route('/enrollments', methods=['POST', 'GET', 'PUT', 'DELETE'])
-@jwt_required()
-def manage_enrollments():
-    user = mongo.db.users.find_one({'username': get_jwt_identity()})
-    role = user['role']
+# @app.route('/enrollments', methods=['POST', 'GET', 'PUT', 'DELETE'])
+# @jwt_required()
+# def manage_enrollments():
+#     user = mongo.db.users.find_one({'username': get_jwt_identity()})
+#     role = user['role']
 
-    if role != 'admin':
+#     if role != 'admin':
+#         return jsonify({'message': 'Access denied'}), 403
+
+#     if request.method == 'POST':
+#         data = request.get_json()
+#         course_id = data.get('course_id')
+#         student_username = data.get('student_username')
+
+#         mongo.db.enrollments.insert_one({
+#             'course_id': course_id,
+#             'student_username': student_username
+#         })
+
+#         return jsonify({'message': 'Enrollment created successfully'})
+
+#     elif request.method == 'GET':
+#         enrollments = list(mongo.db.enrollments.find({}, {'_id': False}))
+#         return jsonify(enrollments)
+
+#     elif request.method == 'PUT':
+#         data = request.get_json()
+#         enrollment_id = data.get('enrollment_id')
+#         update_data = data.get('update_data')
+
+#         mongo.db.enrollments.update_one(
+#             {'_id': enrollment_id},
+#             {'$set': update_data}
+#         )
+
+#         return jsonify({'message': 'Enrollment updated successfully'})
+
+#     elif request.method == 'DELETE':
+#         data = request.get_json()
+#         enrollment_id = data.get('enrollment_id')
+
+#         mongo.db.enrollments.delete_one({'_id': enrollment_id})
+
+#         return jsonify({'message': 'Enrollment deleted successfully'})
+
+@app.route('/enrollments', methods=['POST'])
+@jwt_required()
+def create_enrollment():
+    """Create a new enrollment."""
+    user = mongo.db.users.find_one({'username': get_jwt_identity()})
+    if not user or user['role'] not in ['teacher', 'admin']:
         return jsonify({'message': 'Access denied'}), 403
 
-    if request.method == 'POST':
-        data = request.get_json()
-        course_id = data.get('course_id')
-        student_username = data.get('student_username')
+    data = request.get_json()
+    name = data.get('name')
+    course_id = data.get('course_id')
+    student_Id = data.get('student_id')
+    
+    new_enrollment = {
+        'name': name,
+        'course_id': course_id,
+        'student_id': student_Id
+    }
+    enrollment_id = mongo.db.enrollments.insert_one(new_enrollment).inserted_id
+    new_enrollment['_id'] = str(enrollment_id)
+    return jsonify(new_enrollment), 201
 
-        mongo.db.enrollments.insert_one({
-            'course_id': course_id,
-            'student_username': student_username
-        })
+@app.route('/enrollments', methods=['GET'])
+@jwt_required()
+def get_enrollments():
+    """Get a list of enrollments with pagination."""
+    page = int(request.args.get('page', 0))
+    page_size = int(request.args.get('page_size', 20))
+    enrollments_cursor = mongo.db.enrollments.find().skip(page * page_size).limit(page_size)
+    enrollments = list(enrollments_cursor)
+    total_enrollments = mongo.db.enrollments.count_documents({})
+    # Convert ObjectId to str for JSON serialization
+    for enrollment in enrollments:
+        enrollment['_id'] = str(enrollment['_id'])
 
-        return jsonify({'message': 'Enrollment created successfully'})
+    return jsonify({
+        'data': enrollments,
+        'total': total_enrollments
+    })
 
-    elif request.method == 'GET':
-        enrollments = list(mongo.db.enrollments.find({}, {'_id': False}))
-        return jsonify(enrollments)
+@app.route('/enrollments/<enrollment_id>', methods=['PUT'])
+@jwt_required()
+def update_enrollment(enrollment_id):
+    """Update a enrollment by its ID."""
+    print("Updating Enrollment")
+    print(enrollment_id)
 
-    elif request.method == 'PUT':
-        data = request.get_json()
-        enrollment_id = data.get('enrollment_id')
-        update_data = data.get('update_data')
+    user = mongo.db.users.find_one({'username': get_jwt_identity()})
+    if not user or user['role'] not in ['teacher', 'admin']:
+        return jsonify({'message': 'Access denied'}), 403
+    print("Updating enrollment");
+    data = request.get_json()
+    name = data.get('name')
+    course_id = data.get('course_id')
+    student_Id = data.get('student_id')
+    
+    updated_enrollment = {
+        'name': name,
+        'course_id': course_id,
+        'student_id': student_Id
+    }
+    print(updated_enrollment);
+    print(enrollment_id);
+    enrollment_id = ObjectId(enrollment_id);
+    print(enrollment_id);
+    result = mongo.db.enrollments.update_one(
+        {'_id': enrollment_id},
+        {'$set': updated_enrollment}
+    )
+    print(result);
 
-        mongo.db.enrollments.update_one(
-            {'_id': enrollment_id},
-            {'$set': update_data}
-        )
+    if result.matched_count == 0:
+        return jsonify({'message': 'Enrollment not found'}), 404
 
-        return jsonify({'message': 'Enrollment updated successfully'})
+    # Retrieve the updated enrollment
+    enrollment = mongo.db.enrollments.find_one({'_id': enrollment_id})
+    enrollment['_id'] = str(enrollment['_id'])
 
-    elif request.method == 'DELETE':
-        data = request.get_json()
-        enrollment_id = data.get('enrollment_id')
+    print(enrollment);
+    return jsonify(enrollment), 200
 
-        mongo.db.enrollments.delete_one({'_id': enrollment_id})
+@app.route('/enrollments/<enrollment_id>', methods=['DELETE'])
+@jwt_required()
+def delete_enrollment(enrollment_id):
+    """Delete a enrollment by its ID."""
+    print("Deleting Enrollment")
+    print(enrollment_id);
+    user = mongo.db.users.find_one({'username': get_jwt_identity()})
+    if not user or user['role'] not in ['teacher', 'admin']:
+        return jsonify({'message': 'Access denied'}), 403
+    
+    enrollment_id = ObjectId(enrollment_id);
+    result = mongo.db.enrollments.delete_one({'_id': enrollment_id})
 
-        return jsonify({'message': 'Enrollment deleted successfully'})
+    if result.deleted_count == 0:
+        return jsonify({'message': 'Enrollment not found'}), 404
+
+    return jsonify({'message': 'Enrollment deleted successfully'}), 200
 
 @app.route('/student_info', methods=['GET'])
 @jwt_required()
