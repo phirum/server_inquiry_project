@@ -518,9 +518,10 @@ def update_users(user_id):
         {'_id': user_id},
         {'$set': updated_user}
     )
+    print(result);
 
     if result.matched_count == 0:
-        return jsonify({'message': 'Course not found'}), 404
+        return jsonify({'message': 'User not found'}), 404
 
     # Retrieve the updated course
     user = mongo.db.users.find_one({'_id': user_id})
@@ -588,11 +589,6 @@ def manage_enrollments():
         mongo.db.enrollments.delete_one({'_id': enrollment_id})
 
         return jsonify({'message': 'Enrollment deleted successfully'})
-
-
-
-
-
 
 @app.route('/student_info', methods=['GET'])
 @jwt_required()
