@@ -30,7 +30,7 @@ cors = CORS(app, resources={
         "allow_headers": ["Content-Type", "Authorization"],  # Specify allowed headers
         "supports_credentials": True,  # Allow cookies or credentials
     },
-    r"/users": {
+    r"/users/*": {
          "origins": "http://localhost:3000",
         "methods": ["GET", "POST", "PUT", "DELETE"],  # Specify allowed methods
         "allow_headers": ["Content-Type", "Authorization"],  # Specify allowed headers
@@ -358,58 +358,191 @@ def delete_quiz(quiz_id):
     mongo.db.quizzes.delete_one({'_id': ObjectId(quiz_id)})
     return jsonify({'message': 'Quiz deleted successfully'})
 
+# API endpoint for submitting a quiz
+@app.route("/quizzes/<quiz_id>/submit", methods=["POST"])
+def submit_quiz(quiz_id):
+    try:
+        # Get quiz data from request
+        quiz_data = request.json
+        
+        # Calculate score (for simplicity, assuming correct answer index is provided)
+        quiz = mongo.db.quizzes.find_one({"_id": ObjectId(quiz_id)})
+        correct_answers = [q['correctAnswer'] for q in quiz['questions']]
+        submitted_answers = quiz_data['answers']
+        score = sum(1 for i in range(len(correct_answers)) if correct_answers[i] == submitted_answers[i])
+
+        # Save quiz result to database
+        result = {
+            "student_id": quiz_data["student_id"],
+            "quiz_id": quiz_id,
+            "score": score,
+            "total_questions": len(correct_answers)
+        }
+        mongo.db.quiz_results.insert_one(result)
+
+        return jsonify({"message": "Quiz submitted successfully", "score": score}), 200
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
 
 
-@app.route('/users', methods=['POST', 'GET', 'PUT', 'DELETE'])
+
+# @app.route('/users', methods=['POST', 'GET', 'PUT', 'DELETE'])
+# @jwt_required()
+# def manage_users():
+#     user = mongo.db.users.find_one({'username': get_jwt_identity()})
+#     role = user['role']
+
+#     if role != 'admin':
+#         return jsonify({'message': 'Access denied'}), 403
+
+#     if request.method == 'POST':
+#         data = request.get_json()
+#         username = data.get('username')
+#         password = data.get('password')
+#         role = data.get('role')
+
+#         if mongo.db.users.find_one({'username': username}):
+#             return jsonify({'message': 'User already exists'}), 400
+
+#         hashed_password = generate_password_hash(password)
+#         mongo.db.users.insert_one({
+#             'username': username,
+#             'password': hashed_password,
+#             'role': role
+#         })
+
+#         return jsonify({'message': 'User created successfully'})
+
+#     elif request.method == 'GET':
+#         users = list(mongo.db.users.find({}, {'_id': False, 'password': False}))
+#         return jsonify(users)
+
+#     elif request.method == 'PUT':
+#         data = request.get_json()
+#         username = data.get('username')
+#         update_data = data.get('update_data')
+
+#         mongo.db.users.update_one(
+#             {'username': username},
+#             {'$set': update_data}
+#         )
+
+#         return jsonify({'message': 'User updated successfully'})
+
+#     elif request.method == 'DELETE':
+#         data = request.get_json()
+#         username = data.get('username')
+
+#         mongo.db.users.delete_one({'username': username})
+
+#         return jsonify({'message': 'User deleted successfully'})
+@app.route('/users', methods=['POST'])
 @jwt_required()
-def manage_users():
+def create_users():
+    """Create a new User."""
     user = mongo.db.users.find_one({'username': get_jwt_identity()})
-    role = user['role']
-
-    if role != 'admin':
+    if not user or user['role'] not in ['admin']:
         return jsonify({'message': 'Access denied'}), 403
 
-    if request.method == 'POST':
-        data = request.get_json()
-        username = data.get('username')
-        password = data.get('password')
-        role = data.get('role')
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
+    role = data.get('role')
 
-        if mongo.db.users.find_one({'username': username}):
-            return jsonify({'message': 'User already exists'}), 400
+    if mongo.db.users.find_one({'username': username}):
+        return jsonify({'message': 'User already exists'}), 400
 
-        hashed_password = generate_password_hash(password)
-        mongo.db.users.insert_one({
-            'username': username,
-            'password': hashed_password,
-            'role': role
-        })
+    hashed_password = generate_password_hash(password)
 
-        return jsonify({'message': 'User created successfully'})
+    new_user = {
+        'username': username,
+        'password': hashed_password,
+        'role': role
+    }
+    user_id = mongo.db.users.insert_one(new_user).inserted_id
+    new_user['_id'] = str(user_id)
 
-    elif request.method == 'GET':
-        users = list(mongo.db.users.find({}, {'_id': False, 'password': False}))
-        return jsonify(users)
+    return jsonify(new_user), 201
 
-    elif request.method == 'PUT':
-        data = request.get_json()
-        username = data.get('username')
-        update_data = data.get('update_data')
+@app.route('/users', methods=['GET'])
+@jwt_required()
+def get_users():
 
-        mongo.db.users.update_one(
-            {'username': username},
-            {'$set': update_data}
-        )
+    """Get a list of users with pagination."""
+    page = int(request.args.get('page', 0))
+    page_size = int(request.args.get('page_size', 20))
+  
 
-        return jsonify({'message': 'User updated successfully'})
+    users_cursor = mongo.db.users.find().skip(page * page_size).limit(page_size)
+    users = list(users_cursor)
+    
+    total_users = mongo.db.users.count_documents({})
 
-    elif request.method == 'DELETE':
-        data = request.get_json()
-        username = data.get('username')
+    # Convert ObjectId to str for JSON serialization
+    for user in users:
+        user['_id'] = str(user['_id'])
 
-        mongo.db.users.delete_one({'username': username})
+    
+   
+    return jsonify({
+        'data': users,
+        'total': total_users
+    })
 
-        return jsonify({'message': 'User deleted successfully'})
+@app.route('/users/<user_id>', methods=['PUT'])
+@jwt_required()
+def update_users(user_id):
+    """Update a course by its ID."""
+    user = mongo.db.users.find_one({'username': get_jwt_identity()})
+    if not user or user['role'] not in ['admin']:
+        return jsonify({'message': 'Access denied'}), 403
+    print("Updating user");
+
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
+    role = data.get('role')
+
+    if mongo.db.users.find_one({'username': username}):
+        return jsonify({'message': 'User already exists'}), 400
+    print(password)
+    hashed_password = generate_password_hash(password)
+
+    updated_user = {
+        'username': username,
+        'password': hashed_password,
+        'role': role
+    }
+    user_id = ObjectId(user_id);
+    result = mongo.db.users.update_one(
+        {'_id': user_id},
+        {'$set': updated_user}
+    )
+
+    if result.matched_count == 0:
+        return jsonify({'message': 'Course not found'}), 404
+
+    # Retrieve the updated course
+    user = mongo.db.users.find_one({'_id': user_id})
+    user['_id'] = str(user['_id'])
+
+    print(user);
+    return jsonify(user), 200
+
+@app.route('/users/<user_id>', methods=['DELETE'])
+@jwt_required()
+def delete_user(user_id):
+    """Delete a user by its ID."""
+    user = mongo.db.users.find_one({'username': get_jwt_identity()})
+    if not user or user['role'] not in ['admin']:
+        return jsonify({'message': 'Access denied'}), 403
+    user_id = ObjectId(user_id);
+    result = mongo.db.users.delete_one({'_id': user_id})
+
+    if result.deleted_count == 0:
+        return jsonify({'message': 'User not found'}), 404
+
+    return jsonify({'message': 'User deleted successfully'}), 200
 
 @app.route('/enrollments', methods=['POST', 'GET', 'PUT', 'DELETE'])
 @jwt_required()
@@ -455,6 +588,11 @@ def manage_enrollments():
         mongo.db.enrollments.delete_one({'_id': enrollment_id})
 
         return jsonify({'message': 'Enrollment deleted successfully'})
+
+
+
+
+
 
 @app.route('/student_info', methods=['GET'])
 @jwt_required()
