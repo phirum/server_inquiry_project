@@ -60,6 +60,18 @@ cors = CORS(app, resources={
         "allow_headers": ["Content-Type", "Authorization"],  # Specify allowed headers
         "supports_credentials": True,  # Allow cookies or credentials
     },
+    r"/enrolled_courses/*": {
+         "origins": "http://localhost:3000",
+        "methods": ["GET", "POST", "PUT", "DELETE"],  # Specify allowed methods
+        "allow_headers": ["Content-Type", "Authorization"],  # Specify allowed headers
+        "supports_credentials": True,  # Allow cookies or credentials
+    }, 
+      r"/submit_quizzes/*": {
+         "origins": "http://localhost:3000",
+        "methods": ["GET", "POST", "PUT", "DELETE"],  # Specify allowed methods
+        "allow_headers": ["Content-Type", "Authorization"],  # Specify allowed headers
+        "supports_credentials": True,  # Allow cookies or credentials
+    },
     # Add other routes and origins as needed
 })
 
@@ -91,13 +103,7 @@ def login():
     data = request.get_json()
     username = data.get('username')
     password = data.get('password')
-
-
     user = mongo.db.users.find_one({'username': username})
-    print("Hello ");
-    print(user['password']);   
-    print(password);
-    print(check_password_hash(user['password'], password))
 
     if not user or not check_password_hash(user['password'], password):
         return jsonify({'message': 'Invalid credentials'}), 401
@@ -105,7 +111,8 @@ def login():
     access_token = create_access_token(identity=username)
     return jsonify({
         'access_token': access_token,
-        'role': user['role']
+        'role': user['role'],
+        'user_id':str(user['_id'])
     })
 
 
@@ -706,6 +713,88 @@ def student_info():
         'results': results
     })
 
+
+# API endpoint to get all courses enrolled by a student
+@app.route("/enrolled_courses/<student_id>", methods=["GET"])
+def get_enrolled_courses(student_id):
+    try:
+        print("Get Enrolled Courses")
+        print(student_id)
+        # Find all enrollments for the student
+        enrollments_cursor = mongo.db.enrollments.find({"student_id": student_id})
+        enrollments=list(enrollments_cursor)
+        print("Get Enrolled")
+        print(enrollments);
+        # Find course details for each enrollment
+        courses = []
+        for enrollment in enrollments:
+            course = mongo.db.courses.find_one({"_id": ObjectId(enrollment["course_id"])})
+            if course:
+                courses.append(course)
+        print("Get  Courses")
+        print(courses);
+        # Convert ObjectId to str for JSON serialization
+        for course in courses:
+            course['_id'] = str(course['_id'])
+
+        return jsonify(courses), 200
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
+
+@app.route("/courses/<course_id>/quizzes", methods=["GET"])
+def get_quizzes_for_course(course_id):
+    try:
+        quizzes = mongo.db.quizzes.find({"course_id": course_id})
+        quizzes_list = []
+        for quiz in quizzes:
+            quiz["_id"] = str(quiz["_id"])
+            quiz["course_id"] = quiz["course_id"]
+            quizzes_list.append(quiz)
+        return jsonify(quizzes_list), 200
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
+
+@app.route('/submit_quizzes/<quiz_id>', methods=['POST'])
+def submit_quiz_data(quiz_id):
+    data = request.json
+    student_id = data.get('student_id')
+    answers = data.get('answers')
+
+    print("Submiting...")
+    print(student_id)
+    print(quiz_id)
+    print(answers)
+
+
+    if not student_id or not answers:
+        return jsonify({'error': 'Missing student_id or answers'}), 400
+
+    try:
+        quiz = mongo.db.quizzes.find_one({'_id': ObjectId(quiz_id)})
+        if not quiz:
+            return jsonify({'error': 'Quiz not found'}), 404
+
+        correct_count = 0
+        for idx, question in enumerate(quiz['questions']):
+            if question['correctAnswer'] == answers[idx]:
+                correct_count += 1
+
+        score = (correct_count / len(quiz['questions'])) * 100
+
+        result = {
+            'student_id': student_id,
+            'quiz_id': quiz_id,
+            'answers': answers,
+            'score': score,
+        }
+
+        mongo.db.results.insert_one(result)
+        return jsonify({'message': 'Quiz submitted successfully', 'score': score}), 200
+
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
 
 if __name__ == '__main__':
     app.run(debug=True)
